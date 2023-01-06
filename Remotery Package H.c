@@ -139,3 +139,153 @@
     #define IFDEF_RMT_USE_METAL(t, f) f
 #endif
 
+// Boolean function applying
+typedef unsigned imt rmtBool;
+#define RMT_TRUE((rmtBool)1)
+#define RMT_FALSE ((rmtBool)0)
+
+// Unsigned integrer types
+typedef unsigned char rmtU8;
+typedef unsigned short rmtU16;
+typedef unsigned int rmtU32;
+typedef unsigned long long rmtU64;
+
+typedef float rmtF32;
+typedef double rmtF64;
+
+// Const, null-terminated string pointer
+typedef const char rmtPStr;
+
+// Opaque pointer for a sample graph tree
+typedef struct Msg_SampleTree rmtSampleTree;
+
+// Opaque pointer to a node of the graph 
+typedef struct Sample rmtSample;
+
+// Handle remotery instance of the package
+typedef struct Remotery Remotery;
+
+struct rmtProperty;
+
+typedef enum rmtSampleType
+{
+    RMT_SampleType_CPU,
+    RMT_SampleType_CUDA,
+    RMT_SampleType_D3D11,
+    RMT_SampleType_D3D12,
+    RMT_SampleType_OpenGL,
+    RMT_SampleType_Metal,
+    RMT_SampleType_Count,
+} rmtSampleType;
+
+// All possible error codes
+// clang-format off
+typedef enum rmtError
+{
+    RMT_ERROR_NONE, 
+    RMT_ERROR_RECURSIVE_SAMPLE,
+    RMT_ERROR_UNKNOWN,
+    RMT_ERROR_INVALID_INPUT,
+    RMT_ERROR_RESOURCE_CREATE_FAIL,
+    RMT_ERROR_RESOURCE_ACCESS_FAIL,
+    RMT_ERROR_TIMEOUT,
+
+    // System configuration error 
+    RMT_ERROR_MALLOC_FAIL,
+    RMT_ERROR_TLS_ALLOC_FAIL,
+    RMT_ERROR_VIRTUAL_MEMORY_BUFFER_FAIL,
+    RMT_ERROR_CREATE_THREAD_FAIL,
+    RMT_ERROR_OPEN_THREAD_HANDLE_FAIL,
+
+    // Websocket response error
+    RMT_ERROR_SOCKET_INVALID_POOL,
+    RMT_ERROR_SOCKET_SELECT_FAIL,
+    RMT_ERROR_SOCKET_SEND_FAIL,
+    RMT_ERROR_SOCKET_RECV_TIMEOUT,
+    RMT_ERROR_SOCKET_RECV_FAIL,
+
+    // CUDA error messages
+    RMT_ERROR_CUDA_DEINITIALIZED,               // This indicates that the CUDA driver is in the process of shutting down
+    RMT_ERROR_CUDA_NOT_INITIALIZED,             // This indicates that the CUDA driver has not been initialized with cuInit() or that initialization has failed
+    RMT_ERROR_CUDA_INVALID_CONTEXT,             // This most frequently indicates that there is no context bound to the current thread
+    RMT_ERROR_CUDA_INVALID_VALUE,               // This indicates that one or more of the parameters passed to the API call is not within an acceptable range of values
+    RMT_ERROR_CUDA_INVALID_HANDLE,              // This indicates that a resource handle passed to the API call was not valid
+    RMT_ERROR_CUDA_OUT_OF_MEMORY,               // The API call failed because it was unable to allocate enough memory to perform the requested operation
+    RMT_ERROR_ERROR_NOT_READY,                  // This indicates that a resource handle passed to the API call was not valid
+
+    // Direct3D 11 error messages
+    RMT_ERROR_D3D11_FAILED_TO_CREATE_QUERY,     // Failed to create query for sample
+
+    // OpenGL error messages
+    RMT_ERROR_OPENGL_ERROR,                     // Generic OpenGL error, no need to expose detail since app will need an OpenGL error callback registered
+
+    RMT_ERROR_CUDA_UNKNOWN,
+} rmtError;
+// clang-format on 
+
+RMT_API rmtPStr rmt_GetLastErrorMessage();
+
+typedef void* (*rmtMallocPtr)(void* mm_context, rmtU32 size);
+typedef void* (*rmtReallocPtr)(void* mm_context, void* ptr, rmtU32 size);
+typedef void (*rmtFreePtr)(void* mm_context, void* ptr);
+typedef void (*rmtInputHandlerPtr)(const char* text, void* context);
+typedef void (*rmtSampleTreeHandlerPtr)(void* cbk_context, rmtSampleTree* sample_tree);
+typedef void (*rmtPropertyHandlerPtr)(void* cbk_context, struct rmtProperty* root);
+
+typedef struct rmtSettings
+{
+    // Which port to listen for incoming connections on
+    rmtU16 port;
+
+    // When this server exits it can leave the port open in TIME_WAIT state for a while. This forces
+    // subsequent server bind attempts to fail when restarting. If you find restarts fail repeatedly
+    // with bind attempts, set this to true to forcibly reuse the open port.
+    rmtBool reuse_open_port;
+
+    // Only allow connections on localhost?
+    // For dev builds you may want to access your game from other devices but if
+    // you distribute a game to your players with Remotery active, probably best
+    // to limit connections to localhost.
+    rmtBool limit_connections_to_localhost;
+
+    // Whether to enable runtime thread sampling that discovers which processors a thread is running
+    // on. This will suspend and resume threads from outside repeatdly and inject code into each
+    // thread that automatically instruments the processor.
+    // Default: Enabled
+    rmtBool enableThreadSampler;
+
+    // How long to sleep between server updates, hopefully trying to give
+    // a little CPU back to other threads.
+    rmtU32 msSleepBetweenServerUpdates;
+
+    // Size of the internal message queues Remotery uses
+    // Will be rounded to page granularity of 64k
+    rmtU32 messageQueueSizeInBytes;
+
+    // If the user continuously pushes to the message queue, the server network
+    // code won't get a chance to update unless there's an upper-limit on how
+    // many messages can be consumed per loop.
+    rmtU32 maxNbMessagesPerUpdate;
+
+    // Callback pointers for memory allocation
+    rmtMallocPtr malloc;
+    rmtReallocPtr realloc;
+    rmtFreePtr free;
+    void* mm_context;
+
+    // Callback pointer for receiving input from the Remotery console
+    rmtInputHandlerPtr input_handler;
+
+    // Callback pointer for traversing the sample tree graph
+    rmtSampleTreeHandlerPtr sampletree_handler;
+    void* sampletree_context;
+
+    // Callback pointer for traversing the prpperty graph
+    rmtPropertyHandlerPtr snapshot_callback;
+    void* snapshot_context;
+
+    // Context pointer that gets sent to Remotery console callback function
+    void* input_handler_context;
+
+    rmtPStr logPath;
+} rmtSettings;
